@@ -11,7 +11,6 @@
         5. Remove the fully connected layers in deep models
 
     Troubleshooting:
-
         1. generator loss was getting larger while discriminator loss was near zero
             a LeakyReeLU layer was missing in the discriminator layer (do not no why)
 
@@ -32,6 +31,7 @@ from torchvision import transforms
 from torchsummary import summary
 import torchvision.utils as vutils
 from torch.utils.data import Dataset,DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 device='cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -180,6 +180,7 @@ def disc_train_step(model:nn.Module,fake_data:torch.Tensor,
 
 
 if __name__=='__main__':
+    writer = SummaryWriter()
     gen=Generator().to(device)
     disc=Discriminator().to(device)
     dataloader=DataLoader(Faces('data/male_female/females','data/male_female/males'),
@@ -189,32 +190,31 @@ if __name__=='__main__':
     g_optim=Adam(gen.parameters(),0.0002,betas=(0.5,0.999)) # to stabilize the training
     d_optim=Adam(disc.parameters(),0.0002,betas=(0.5,0.999))
 
-    epochs=2
-    log=Report(epochs)
-
+    epochs=15
     for epoch in range(epochs):
         N=len(dataloader)
+        gs,ds=[],[]
         for i,real_data in enumerate(dataloader):
             fake_data=gen(noise(len(real_data)))
             fake_data.detach()
             d_loss=disc_train_step(disc,fake_data,real_data,
                                    loss_fn,d_optim)
-            
+
             fake_data=gen(noise(len(real_data)))
             g_loss=gen_train_step(disc,fake_data,loss_fn,g_optim)
-            log.record((i+1)/N,d_loss=d_loss,g_loss=g_loss,end='/t')
-        log.report_avgs(epoch+1)
+            gs.append(g_loss)
+            ds.append(d_loss)
 
+        writer.add_scalar('generator_loss',np.mean(gs),epoch)
+        writer.add_scalar('discriminator_loss',np.mean(ds),epoch)
 
-    # evaluation
-    gen.eval()
-    noise = torch.randn(1, 100, 1, 1, device=device)
-
-    denormalize=transforms.Compose([
-                transforms.Normalize([-1,-1,-1],[1/0.5,1/0.5,1/0.5])
-            ])
-    imgs = denormalize(gen(noise))
-    img=imgs.detach().cpu().permute(0,2,3,1).numpy()[0]*255
+        # eval
+        with torch.no_grad():
+          fake_data=gen(noise(len(real_data)))
+          real=make_grid(real_data[:32],normalize=True)
+          fake=make_grid(fake_data[:32],normalize=True)
+          writer.add_image('real',real,epoch)
+          writer.add_image('fake',fake,epoch)
 
     
         
