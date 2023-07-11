@@ -1,11 +1,22 @@
 '''
-Troubleshooting:
+    The implemntation of the paper https://arxiv.org/pdf/1511.06434.pdf
 
-    1. generator loss was getting larger while discriminator loss was near zero
-        a LeakyReeLU layer was missing in the discriminator layer (do not no why)
+    Implementation Notes according to the original paper
+        1. Use strided convolution in the model archeticture instead of pooling
+        2. Use batchnormalization in both generator and discriminator instead of 
+            the input layer of the discriminator and the output layer of the generator
+            to stablilize the training
+        3. Use ReLU in all of the generator's layer but the last layer use Tanh
+        4. Normalize images to the range od the Tansh function [-1,1]
+        5. Remove the fully connected layers in deep models
 
-    2. can not denormalize images comming out of the generator
-        using the inverse of the normalization values and multiply by 255
+    Troubleshooting:
+
+        1. generator loss was getting larger while discriminator loss was near zero
+            a LeakyReeLU layer was missing in the discriminator layer (do not no why)
+
+        2. can not denormalize images comming out of the generator
+            using the inverse of the normalization values and multiply by 255
 '''
 
 
@@ -25,9 +36,14 @@ from torch.utils.data import Dataset,DataLoader
 device='cuda' if torch.cuda.is_available() else 'cpu'
 
 def noise(size):
+    '''generates random tensor of specific size'''
     return torch.randn(size,100,1,1).to(device)
 
 def init(m):
+    '''
+        initializes the weights of all presented layers in the model
+        the initialization values were introduced in the paper of DCGAN https://arxiv.org/pdf/1511.06434.pdf    
+    '''
     classname=m.__class__.__name__
     if classname.find('Conv')!=-1:
         nn.init.normal_(m.weight.data,0.0,0.2)
@@ -37,8 +53,8 @@ def init(m):
 
 class Faces(Dataset):
     def __init__(self,males,females):
-        super().__init__()
-        self.cascade=cv.CascadeClassifier(cv.data.haarcascades+'haarcascade_frontalface_default.xml')
+        super().__init__() 
+        self.cascade=cv.CascadeClassifier(cv.data.haarcascades+'haarcascade_frontalface_default.xml') # to crop faces
 
         males=glob(os.path.join(males,'*'))
         females=glob(os.path.join(females,'*'))
@@ -53,7 +69,8 @@ class Faces(Dataset):
         ])
 
 
-    def prepare_faces(self,paths,save_p):
+    def prepare_faces(self,paths:str,save_p:str)->list:
+        '''iterate on all images and crop faces then save them'''
         if os.path.exists(save_p):
             return glob(os.path.join(save_p,'*'))
         os.mkdir(save_p)
@@ -68,19 +85,20 @@ class Faces(Dataset):
         return glob(os.path.join(save_p,'*'))
 
     def __getitem__(self,i):
-        # print(self.imgs[i] )
         img=cv.imread(self.paths[i]) 
         img=self.transform(img)
         return img.to(device)
 
     def __len__(self):return len(self.paths)
 
+
 class Generator(nn.Module):
     def __init__(self):
         super().__init__()
 
+        # input shape [Batch * 100 * 1 * 1]
         self.model=nn.Sequential(
-            nn.ConvTranspose2d(100,64*8,4,1,0,bias=False),
+            nn.ConvTranspose2d(100,64*8,4,1,0,bias=False), # excluding bias as we are using batchnorm
             nn.BatchNorm2d(64*8),
             nn.ReLU(True),
 
@@ -110,6 +128,7 @@ class Discriminator(nn.Module):
     def __init__(self):
         super().__init__()
         
+        # input shape [Batch * Channels * 64 * 64]
         self.model=nn.Sequential(
             nn.Conv2d(3,64,4,2,1,bias=False),
             nn.LeakyReLU(0.2,inplace=True),
@@ -167,7 +186,7 @@ if __name__=='__main__':
                           shuffle=True,batch_size=64)
 
     loss_fn=nn.BCELoss()
-    g_optim=Adam(gen.parameters(),0.0002,betas=(0.5,0.999))
+    g_optim=Adam(gen.parameters(),0.0002,betas=(0.5,0.999)) # to stabilize the training
     d_optim=Adam(disc.parameters(),0.0002,betas=(0.5,0.999))
 
     epochs=2
