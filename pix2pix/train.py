@@ -12,6 +12,8 @@ import os
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import make_grid
 import numpy as np
+import argparse
+
 
 
 def train_disc(disc,data,fake,bce,disc_optim,d_scaler):
@@ -69,12 +71,12 @@ def save_sample(gen,x,i):
     cv.imwrite(os.path.join(saving_path,f'{i}.jpg'))
 
 
-def main():
+def main(args):
     writer=SummaryWriter()
     gen=Generator().to(device)
     disc=Discriminator().to(device)
-    tr_loader=DataLoader(GanDataset('data/maps/maps/train'),batch_size=BS,shuffle=True)
-    val_loader=DataLoader(GanDataset('data/maps/maps/val'),batch_size=8,shuffle=True)
+    tr_loader=DataLoader(GanDataset(f'{args.data}/train'),batch_size=BS,shuffle=True)
+    val_loader=DataLoader(GanDataset(f'{args.data}/val'),batch_size=8,shuffle=True)
 
     gen_optim=Adam(gen.parameters(),LR,betas=adam_betas)
     disc_optim=Adam(disc.parameters(),LR,betas=adam_betas)
@@ -112,5 +114,12 @@ def main():
             writer.add_image('real',real,epoch)
             writer.add_image('fake',fake,epoch)
 
+if __name__=='__main__':
+    parser = argparse.ArgumentParser(description="A simple script that greets the user.")
 
-main()
+    # Add arguments to the parser
+    parser.add_argument("--data", type=str, help="path to the root of dataset")
+
+    # Parse the command-line arguments
+    args = parser.parse_args()
+    main(args)
