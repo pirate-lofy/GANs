@@ -13,7 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import make_grid
 import numpy as np
 import argparse
-
+import albumentations as A
 
 
 def train_disc(disc,data,fake,bce,disc_optim,d_scaler):
@@ -61,14 +61,19 @@ def validate_batch(data,gen,disc,bce,L1):
         l1_loss=L1(fake,y)*l1_lambda
         gen_loss=fake_loss+l1_loss
 
-    return disc_loss.item(),gen_loss.loss()
+    return disc_loss.item(),gen_loss.item()
 
 
-def save_sample(gen,x,i):
-    fake=gen(x).permute([1,2,0]).cpu().numpy()
+def save_sample(x,i):
     if not os.path.exists(saving_path):
         os.mkdir(saving_path)
-    cv.imwrite(os.path.join(saving_path,f'{i}.jpg'))
+    transform=A.Compose([
+            A.Normalize([-1,-1,-1],[1/0.5,1/0.5,1/0.5])
+        ])
+    for j,xx in enumerate(x):
+        x=transform(x)
+        fake=xx.permute([1,2,0]).detach().cpu().numpy()
+        cv.imwrite(os.path.join(saving_path,f'{i}-{j}.jpg'),fake)
 
 
 def main(args):
@@ -88,6 +93,8 @@ def main(args):
     for epoch in trange(epochs):
         vg_loss,vd_loss,tg_loss,td_loss=[],[],[],[]
 
+        gen.train()
+        disc.train()
         for ix,data in enumerate(tr_loader):
             x,y=data
             fake=gen(x)
@@ -99,6 +106,8 @@ def main(args):
         writer.add_scalar('training generator loss',np.mean(td_loss),epoch)
         writer.add_scalar('training disc loss',np.mean(td_loss),epoch)
             
+        gen.eval()
+        disc.eval()
         for ix,data in enumerate(val_loader):
             disc_loss,gen_loss=validate_batch(data,gen,disc,bce,L1)
             vd_loss.append(disc_loss)
@@ -107,12 +116,15 @@ def main(args):
         writer.add_scalar('calidation disc loss',np.mean(td_loss),epoch)
 
         if epoch%5==0:
-            x,y=next(iter(val_loader))
-            fake_data=gen()
-            real=make_grid(x,normalize=True)
-            fake=make_grid(fake_data,normalize=True)
-            writer.add_image('real',real,epoch)
-            writer.add_image('fake',fake,epoch)
+            with torch.no_grad():
+                x,y=next(iter(val_loader))
+                fake_data=gen()
+                real=make_grid(x,normalize=True)
+                fake=make_grid(fake_data,normalize=True)
+                writer.add_image('real',real,epoch)
+                writer.add_image('fake',fake,epoch)
+
+                save_sample(fake_data,epoch)
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description="A simple script that greets the user.")
