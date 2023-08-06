@@ -14,6 +14,7 @@ from torchvision.utils import make_grid
 import numpy as np
 import argparse
 import albumentations as A
+from time import time
 
 
 def train_disc(disc,data,fake,bce,disc_optim,d_scaler):
@@ -71,17 +72,21 @@ def save_sample(x,i):
             A.Normalize([-1,-1,-1],[1/0.5,1/0.5,1/0.5])
         ])
     for j,xx in enumerate(x):
-        x=transform(image=x)
         fake=xx.permute([1,2,0]).detach().cpu().numpy()
+        fake=transform(image=fake)['image']
         cv.imwrite(os.path.join(saving_path,f'{i}-{j}.jpg'),fake)
 
 
 def main(args):
+    st=time()
     writer=SummaryWriter()
     gen=Generator().to(device)
     disc=Discriminator().to(device)
     tr_loader=DataLoader(GanDataset(f'{args.data}/train'),batch_size=BS,shuffle=True)
     val_loader=DataLoader(GanDataset(f'{args.data}/val'),batch_size=8,shuffle=True)
+
+    print(f'loaded dataset and model in {time()-st}')
+    st=time()
 
     gen_optim=Adam(gen.parameters(),LR,betas=adam_betas)
     disc_optim=Adam(disc.parameters(),LR,betas=adam_betas)
@@ -90,12 +95,15 @@ def main(args):
     gen_scaler=torch.cuda.amp.GradScaler()
     disc_scaler=torch.cuda.amp.GradScaler()
 
+    print(f'loaded optims and scalers in {time()-st}')
+
     for epoch in trange(epochs):
         vg_loss,vd_loss,tg_loss,td_loss=[],[],[],[]
 
         gen.train()
         disc.train()
         for ix,data in enumerate(tr_loader):
+            st=time()
             x,y=data
             fake=gen(x)
             disc_loss=train_disc(disc,data,fake,bce,disc_optim,disc_scaler)
@@ -103,15 +111,19 @@ def main(args):
             td_loss.append(disc_loss)
             tg_loss.append(gen_loss)
         
+        print(f'single training iteration tool {time()-st}')
         writer.add_scalar('training generator loss',np.mean(td_loss),epoch)
         writer.add_scalar('training disc loss',np.mean(td_loss),epoch)
             
         gen.eval()
         disc.eval()
+        st=time()
         for ix,data in enumerate(val_loader):
             disc_loss,gen_loss=validate_batch(data,gen,disc,bce,L1)
             vd_loss.append(disc_loss)
             vg_loss.append(gen_loss)
+
+        print(f'single validation iteration tool {time()-st}')
         writer.add_scalar('validation generator loss',np.mean(td_loss),epoch)
         writer.add_scalar('calidation disc loss',np.mean(td_loss),epoch)
 
