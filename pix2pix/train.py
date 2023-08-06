@@ -71,7 +71,7 @@ def save_sample(x,i):
             A.Normalize([-1,-1,-1],[1/0.5,1/0.5,1/0.5])
         ])
     for j,xx in enumerate(x):
-        x=transform(x)
+        x=transform(image=x)
         fake=xx.permute([1,2,0]).detach().cpu().numpy()
         cv.imwrite(os.path.join(saving_path,f'{i}-{j}.jpg'),fake)
 
@@ -118,7 +118,7 @@ def main(args):
         if epoch%5==0:
             with torch.no_grad():
                 x,y=next(iter(val_loader))
-                fake_data=gen()
+                fake_data=gen(x)
                 real=make_grid(x,normalize=True)
                 fake=make_grid(fake_data,normalize=True)
                 writer.add_image('real',real,epoch)
