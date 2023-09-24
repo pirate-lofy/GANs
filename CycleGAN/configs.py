@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 device='cuda' if torch.cuda.is_available() else 'cpu'
-BS=1
+BS=12
 LR=2e-4
 epochs=100
 CYC_LAM=10
