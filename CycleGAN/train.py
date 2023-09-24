@@ -47,6 +47,9 @@ def main(args):
         gen_losses=[]
 
         for horse,zebra in tr_data:
+            horse=horse.to(device)
+            zebra=zebra.to(device)
+            
             with torch.cuda.amp.autocast():
                 # train H disc
                 fake_h=gen_h(zebra)

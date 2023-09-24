@@ -33,7 +33,7 @@ class DATA(Dataset):
         aug=self.transform(image=horse,image0=zebra)
         horse,zebra=aug['image'],aug['image0']
 
-        return horse.to(device),zebra.to(device)
+        return horse,zebra
 
 
 if __name__=='__main__':
