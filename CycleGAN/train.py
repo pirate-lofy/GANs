@@ -1,3 +1,4 @@
+import os
 import torch
 import argparse
 from torch import nn
@@ -49,7 +50,7 @@ def main(args):
         for horse,zebra in tr_data:
             horse=horse.to(device)
             zebra=zebra.to(device)
-            
+
             with torch.cuda.amp.autocast():
                 # train H disc
                 fake_h=gen_h(zebra)
@@ -106,6 +107,10 @@ def main(args):
         
         print(f'epoch:{epoch}, gen loss:{round(np.mean(gen_losses),4)} disc losses: {round(np.mean(disc_losses),4)}')
         if epoch%2:
+            if not os.path.exists('samples/horses'):
+                os.makedirs('samples/horses')
+            if not os.path.exists('samples/zebras'):
+                os.makedirs('samples/zebras')
             save_image(fake_h,f'samples/horses/{epoch}.jpg')
             save_image(fake_z,f'samples/zebras/{epoch}.jpg')
 
